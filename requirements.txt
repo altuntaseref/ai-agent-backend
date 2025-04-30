@@ -1,0 +1,13 @@
+langchain
+langchain-google-genai # Google GenAI integration
+langchain-core # LangChain core components
+python-dotenv
+google-generativeai
+requests # For making HTTP requests to the Spring Boot service
+fastapi # Web framework
+uvicorn[standard] # ASGI server for FastAPI
+python-multipart # For parsing multipart/form-data (file uploads)
+pydantic # Explicitly add for schema definition (might be a sub-dependency already)
+# Add Pydantic for tool argument validation later if needed
+# Add FastAPI or Flask later for the web interface
+# İleride FastAPI veya Flask gibi bir web framework ekleyebiliriz 

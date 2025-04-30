@@ -1,0 +1,8 @@
+langchain
+langchain-openai # OpenAI entegrasyonu için
+langchain-google-genai # Google GenAI entegrasyonu için
+langchain-core # LangChain çekirdek bileşenleri için
+openai 
+python-dotenv
+google-generativeai # Bu aslında google-cloud-aiplatform olabilir, ama şimdilik kalsın
+# İleride FastAPI veya Flask gibi bir web framework ekleyebiliriz 
