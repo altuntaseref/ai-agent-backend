@@ -1,0 +1,7 @@
+# .gitignore
+backend/.env
+venv/
+__pycache__/
+*.pyc
+*.log
+target/ # Prompt logları için oluşturduğumuz klasör
