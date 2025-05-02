@@ -19,6 +19,10 @@ PROJECT_GENERATOR_API_URL = os.getenv("PROJECT_GENERATOR_API_URL")
 # CI_CD_API_URL = os.getenv("CI_CD_API_URL")
 # LOG_ANALYZER_API_URL = os.getenv("LOG_ANALYZER_API_URL")
 
+# --- Jenkins API Configuration ---
+JENKINS_API_BASE_URL = os.getenv("JENKINS_API_BASE_URL", "http://localhost:8080")
+# Eğer değer belirtilmezse, varsayılan olarak localhost:8080 kullan
+
 # You can add other configurations like database connection strings, etc.
 
 # Basic validation (optional but recommended)
@@ -26,4 +30,5 @@ if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY environment variable not set.")
 
 print("Configuration loaded.")
-print(f"Using LLM Provider: {LLM_PROVIDER}") 
+print(f"Using LLM Provider: {LLM_PROVIDER}")
+print(f"Jenkins API URL: {JENKINS_API_BASE_URL}") 

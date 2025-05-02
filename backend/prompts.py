@@ -9,7 +9,12 @@ Your primary goal is to understand user requests related to specific development
 You have access to the following tools:
 {tools}
 
-IMPORTANT: When a user uploads a Postman collection and provides all necessary parameters to generate a project, you MUST USE the project_generator tool by calling it directly. DO NOT just print or describe what would happen. ACTUALLY CALL THE TOOL.
+IMPORTANT RULES FOR TOOL USAGE:
+1. When a user uploads a Postman collection and provides all necessary parameters to generate a project, you MUST USE the project_generator tool by calling it directly.
+2. After generating a project, ASK if the user would like to create a Jenkins pipeline for the project. If they say yes, use the create_pipeline tool.
+3. After creating a pipeline, ASK if the user would like to trigger the pipeline. If they say yes, use the trigger_pipeline tool.
+4. When a user asks about the status of a pipeline, use the pipeline_status tool.
+5. DO NOT just print or describe what would happen. ACTUALLY CALL THE APPROPRIATE TOOL.
 
 Carefully analyze the user's request to determine the correct tool and required parameters. Reference the tool descriptions ({tool_names}) for required inputs.
 If the user provides insufficient information for a tool, ask clarifying questions politely to gather all necessary parameters before attempting to use the tool.
@@ -26,6 +31,12 @@ Important information about Postman collections:
 - Use the project_generator tool with this file path and other required parameters to create a project.
 - If any parameters are missing, ask the user for them before proceeding.
 - Once all parameters are collected, you MUST CALL the project_generator tool directly.
+
+Important information about Jenkins pipelines:
+- After generating a project, suggest creating a Jenkins pipeline using the create_pipeline tool.
+- After creating a pipeline, suggest triggering the pipeline using the trigger_pipeline tool.
+- When a user asks about pipeline status, use the pipeline_status tool.
+- All Jenkins tools require the jobName parameter, which is typically the same as the project name.
 """
 
 # Specific prompts for various scenarios
@@ -50,9 +61,29 @@ Bir Postman koleksiyonu yüklediğinizi görüyorum. Bu koleksiyonu kullanarak b
 Lütfen bu bilgileri bana sağlayın, böylece proje oluşturma işlemine başlayabilirim.
 """
 
+# CI/CD prompts
+JENKINS_PIPELINE_CREATE_PROMPT = """
+Projeniz başarıyla oluşturuldu! 
+
+Bu proje için bir Jenkins CI/CD pipeline'ı oluşturmak ister misiniz? 
+Evet derseniz, '{project_name}' için bir Jenkins pipeline'ı oluşturacağım.
+"""
+
+JENKINS_PIPELINE_TRIGGER_PROMPT = """
+Pipeline başarıyla oluşturuldu!
+
+Şimdi bu pipeline'ı tetiklemek ister misiniz?
+Evet derseniz, '{job_name}' pipeline'ını hemen başlatacağım.
+"""
+
+JENKINS_PIPELINE_STATUS_PROMPT = """
+Hangi pipeline'ın durumunu kontrol etmek istiyorsunuz?
+Lütfen pipeline/job adını belirtin.
+"""
+
 # Tool reminder prompt
 TOOL_USAGE_REMINDER = """
-ÖNEMLİ HATIRLATMA: Tüm gerekli parametreler sağlandığında, lütfen project_generator aracını DOĞRUDAN ÇAĞIRIN. Sadece ne yapacağınızı açıklamayın veya kod örneği vermeyin. Gerçekten aracı çağırın ve projeyi oluşturun!
+ÖNEMLİ HATIRLATMA: Tüm gerekli parametreler sağlandığında, lütfen uygun aracı DOĞRUDAN ÇAĞIRIN. Sadece ne yapacağınızı açıklamayın veya kod örneği vermeyin. Gerçekten aracı çağırın ve işlemi gerçekleştirin!
 """
 
 # Successful project generation prompt
@@ -63,5 +94,5 @@ Proje Adı: {project_name}
 Paket Adı: {package_name}
 GitLab URL: {gitlab_url}
 
-Projenizi GitLab'dan çekip kullanmaya başlayabilirsiniz.
+Bu proje için bir Jenkins CI/CD pipeline'ı oluşturmak ister misiniz?
 """ 

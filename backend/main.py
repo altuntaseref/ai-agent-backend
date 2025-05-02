@@ -9,8 +9,9 @@ import uvicorn
 from typing import Optional, Dict, Any
 
 from agent import SoftwareDevAgent
-from tools.project_generator import ProjectGeneratorTool # Araç hala tanımlı olmalı
-from schemas import ChatResponse # Sadece ChatResponse kaldı
+from tools.project_generator import ProjectGeneratorTool
+from tools.jenkins.jenkins_tools import CreatePipelineTool, TriggerPipelineTool, PipelineStatusTool
+from schemas import ChatResponse
 import config
 import prompts
 
@@ -39,10 +40,16 @@ def startup_event():
     global agent_instance
     print("Initializing Agent...")
     try:
-        # Agent'ı proje oluşturma aracıyla birlikte başlatmalıyız ki onu kullanabilsin
-        tools_to_load = [ProjectGeneratorTool()]
+        # Tüm araçları yükleyelim
+        tools_to_load = [
+            ProjectGeneratorTool(),  # Proje oluşturma aracı
+            CreatePipelineTool(),    # Jenkins pipeline oluşturma aracı
+            TriggerPipelineTool(),   # Jenkins pipeline tetikleme aracı  
+            PipelineStatusTool()     # Jenkins pipeline durum sorgulama aracı
+        ]
         agent_instance = SoftwareDevAgent(tools=tools_to_load)
-        print("Agent initialized successfully with tools.")
+        print(f"Agent initialized successfully with {len(tools_to_load)} tools.")
+        print(f"Available tools: {', '.join([tool.name for tool in tools_to_load])}")
     except Exception as e:
         print(f"CRITICAL: Agent initialization failed: {e}")
         agent_instance = None
