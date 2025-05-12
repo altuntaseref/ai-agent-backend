@@ -23,6 +23,10 @@ class PipelineStatusInput(BaseModel):
     """Input schema for the PipelineStatusTool."""
     jobName: str = Field(description="The name of the Jenkins job/pipeline to check status (e.g., product-passthrough-service).")
 
+class AppHealthCheckInput(BaseModel):
+    """Input schema for the AppHealthCheckTool."""
+    appName: str = Field(description="The name of the application to check health status (e.g., customer-service).")
+
 # --- Tool Implementations --- 
 
 class CreatePipelineTool(BaseTool):
@@ -236,4 +240,88 @@ Bu pipeline'ı tetiklemek veya başka işlemler yapmak ister misiniz?
             return prompts.API_ERROR_PROMPT.format(error_message=error_message)
         except Exception as e:
             print(f"ERROR: Unexpected error during pipeline status check: {e}")
-            return f"Pipeline durumu sorgulanırken beklenmeyen bir hata oluştu: {e}" 
+            return f"Pipeline durumu sorgulanırken beklenmeyen bir hata oluştu: {e}"
+
+class AppHealthCheckTool(BaseTool):
+    """Tool to check the health status of an application and return application url."""
+    name: str = "app_health_check"
+    description: str = (
+        "Checks the health status of a deployed application. "
+        "Use this tool when the user wants to verify if a service is running and healthy. "
+        "Required parameter: appName (the name of the application to check, e.g., customer-service)."
+    )
+    args_schema: Type[BaseModel] = AppHealthCheckInput
+
+    def _run(self, appName: str) -> str:
+        """Checks the health status of the specified application."""
+        print(f"AppHealthCheckTool: Checking health for application: {appName}")
+        
+        # Get API endpoint
+        base_url = config.JENKINS_API_BASE_URL
+        if not base_url:
+            print("ERROR: JENKINS_API_BASE_URL environment variable not set")
+            return "Hata: API temel URL'si ayarlanmamış. Lütfen .env dosyasını kontrol edin."
+        
+        api_endpoint = f"{base_url}/api/v1/app-health/check/{appName}"
+        
+        try:
+            # Make the GET request
+            print(f"Calling App Health Check API at: {api_endpoint}")
+            
+            response = requests.get(
+                api_endpoint,
+                timeout=30  # 30 saniye timeout
+            )
+            
+            # Log response details
+            print(f"API Response status: {response.status_code}")
+            print(f"API Response headers: {response.headers}")
+            
+            # Raise exception for bad status codes
+            response.raise_for_status()
+            
+            # Try to parse JSON response
+            try:
+                json_response = response.json()
+                print(f"API Response success: {json_response}")
+                
+                # Extract health status from the response
+                status = json_response.get("status", "UNKNOWN")
+                details = json_response.get("details", {})
+                is_healthy = (status == "UP")
+                details = json_response.get("details", {})
+                url = details.get("URL", None)
+                
+                # Translate status to user-friendly Turkish
+                health_status_tr = "Uygulama sağlıklı şekiled çalışıyor" if is_healthy else "Uygulama çalışmıyor"
+                
+                return f"""Uygulama Sağlık Durumu:
+
+Uygulama Adı: {appName}
+Durum: {health_status_tr}
+URL: {url}
+
+Detaylar: {json.dumps(details, indent=2, ensure_ascii=False)}
+
+Bu uygulamanın pipeline'ını tetiklemek veya başka bir uygulama kontrolü yapmak ister misiniz?
+"""
+            except json.JSONDecodeError:
+                # Response may not be JSON, try to interpret raw response
+                if response.status_code == 200:
+                    return f"{appName} uygulaması çalışıyor ve sağlıklı görünüyor."
+                else:
+                    return f"Uygulama sağlık kontrolü yanıtı beklenmeyen formatta: {response.text[:500]}"
+                
+        except requests.exceptions.ConnectionError:
+            return f"Bağlantı hatası: {appName} uygulamasına erişilemiyor. Uygulama kapalı veya yanıt vermiyor olabilir."
+        except requests.exceptions.Timeout:
+            return f"Zaman aşımı: {appName} uygulaması yanıt verme süresini aştı."
+        except requests.exceptions.RequestException as e:
+            error_message = f"{type(e).__name__}: {e}"
+            print(f"ERROR: Health check API request failed: {error_message}")
+            if hasattr(e, 'response') and e.response is not None:
+                error_message += f" - Yanıt: {e.response.text[:500]}"
+            return prompts.API_ERROR_PROMPT.format(error_message=error_message)
+        except Exception as e:
+            print(f"ERROR: Unexpected error during health check: {e}")
+            return f"Uygulama sağlık kontrolü sırasında beklenmeyen bir hata oluştu: {e}" 

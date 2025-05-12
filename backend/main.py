@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 
 from agent import SoftwareDevAgent
 from tools.project_generator import ProjectGeneratorTool
-from tools.jenkins.jenkins_tools import CreatePipelineTool, TriggerPipelineTool, PipelineStatusTool
+from tools.jenkins.jenkins_tools import CreatePipelineTool, TriggerPipelineTool, PipelineStatusTool, AppHealthCheckTool
 from schemas import ChatResponse
 import config
 import prompts
@@ -45,7 +45,8 @@ def startup_event():
             ProjectGeneratorTool(),  # Proje oluşturma aracı
             CreatePipelineTool(),    # Jenkins pipeline oluşturma aracı
             TriggerPipelineTool(),   # Jenkins pipeline tetikleme aracı  
-            PipelineStatusTool()     # Jenkins pipeline durum sorgulama aracı
+            PipelineStatusTool(),    # Jenkins pipeline durum sorgulama aracı
+            AppHealthCheckTool()     # Uygulama sağlık kontrolü aracı
         ]
         agent_instance = SoftwareDevAgent(tools=tools_to_load)
         print(f"Agent initialized successfully with {len(tools_to_load)} tools.")

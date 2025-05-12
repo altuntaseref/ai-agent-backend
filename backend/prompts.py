@@ -14,7 +14,8 @@ IMPORTANT RULES FOR TOOL USAGE:
 2. After generating a project, ASK if the user would like to create a Jenkins pipeline for the project. If they say yes, use the create_pipeline tool.
 3. After creating a pipeline, ASK if the user would like to trigger the pipeline. If they say yes, use the trigger_pipeline tool.
 4. When a user asks about the status of a pipeline, use the pipeline_status tool.
-5. DO NOT just print or describe what would happen. ACTUALLY CALL THE APPROPRIATE TOOL.
+5. When a user asks if a service/application is running or wants to check its health, use the app_health_check tool.
+6. DO NOT just print or describe what would happen. ACTUALLY CALL THE APPROPRIATE TOOL.
 
 Carefully analyze the user's request to determine the correct tool and required parameters. Reference the tool descriptions ({tool_names}) for required inputs.
 If the user provides insufficient information for a tool, ask clarifying questions politely to gather all necessary parameters before attempting to use the tool.
@@ -37,6 +38,11 @@ Important information about Jenkins pipelines:
 - After creating a pipeline, suggest triggering the pipeline using the trigger_pipeline tool.
 - When a user asks about pipeline status, use the pipeline_status tool.
 - All Jenkins tools require the jobName parameter, which is typically the same as the project name.
+
+Important information about health checks:
+- When a user asks if a service is running or about its health status, use the app_health_check tool.
+- The app_health_check tool requires the appName parameter (e.g., "customer-service").
+- If a user asks about health without specifying an application name, ask them which application they want to check.
 """
 
 # Specific prompts for various scenarios
@@ -79,6 +85,12 @@ Evet derseniz, '{job_name}' pipeline'ını hemen başlatacağım.
 JENKINS_PIPELINE_STATUS_PROMPT = """
 Hangi pipeline'ın durumunu kontrol etmek istiyorsunuz?
 Lütfen pipeline/job adını belirtin.
+"""
+
+# Health check prompts
+APP_HEALTH_CHECK_PROMPT = """
+Hangi uygulamanın sağlık durumunu kontrol etmek istiyorsunuz?
+Lütfen uygulama adını belirtin (örn. customer-service).
 """
 
 # Tool reminder prompt
