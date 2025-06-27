@@ -12,6 +12,7 @@ from datetime import datetime
 class ChatResponse(BaseModel):
     """Response model for the /chat endpoint."""
     response: str
+    session_title: Optional[str] = None
 
 # --- /generate-project modelleri kaldırıldı --- 
 
@@ -49,7 +50,7 @@ class ChatHistoryListResponse(BaseModel):
     history: list[ChatHistoryResponse] 
 
 class ChatSessionCreate(BaseModel):
-    title: str
+    title: Optional[str] = None
 
 class ChatSessionResponse(BaseModel):
     id: int

@@ -181,6 +181,20 @@ async def handle_chat_with_file(
         # Agent'a mesajı ve gerekli bilgileri ilet
         agent_response = agent.run(input_for_agent)
         
+        # Eğer session başlığı 'Yeni Sohbet' veya boş ise, başlık üret
+        session_title = session.title
+        if not session.title or session.title == "Yeni Sohbet":
+            # LLM'den başlık üretmek için prompt hazırla
+            title_prompt = f"Aşağıdaki mesaj için kısa ve anlamlı bir sohbet başlığı üret (maksimum 5 kelime, Türkçe):\n\n{message}"
+            generated_title = agent.llm.invoke(title_prompt)
+            if hasattr(generated_title, 'content'):
+                session_title = generated_title.content.strip()
+            else:
+                session_title = str(generated_title).strip()
+            # Session başlığını güncelle
+            session.title = session_title
+            db.commit()
+        
         # Chat geçmişine kaydet
         chat_entry = ChatHistory(
             user_id=current_user.id,
@@ -201,7 +215,7 @@ async def handle_chat_with_file(
             except OSError as e:
                 print(f"Error cleaning up temp file {temp_file_path}: {e}")
                 
-        return ChatResponse(response=agent_response)
+        return ChatResponse(response=agent_response, session_title=session_title)
     except Exception as e:
         print(f"Chat endpoint error: {e}")
         # Agent çalışırken hata olursa geçici dosyayı temizle
@@ -270,7 +284,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
 
 @app.post("/chat/session", response_model=ChatSessionResponse)
 def create_chat_session(session: ChatSessionCreate, current_user: User = Depends(get_current_user), db=Depends(get_db)):
-    new_session = ChatSession(user_id=current_user.id, title=session.title)
+    title = session.title or "Yeni Sohbet"
+    new_session = ChatSession(user_id=current_user.id, title=title)
     db.add(new_session)
     db.commit()
     db.refresh(new_session)
