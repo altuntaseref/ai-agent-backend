@@ -6,3 +6,10 @@ openai
 python-dotenv
 google-generativeai # Bu aslında google-cloud-aiplatform olabilir, ama şimdilik kalsın
 # İleride FastAPI veya Flask gibi bir web framework ekleyebiliriz 
+sqlalchemy
+alembic
+psycopg2-binary
+fastapi
+uvicorn
+passlib[bcrypt]
+python-jose[cryptography] 

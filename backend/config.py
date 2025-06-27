@@ -1,5 +1,7 @@
 import os
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 
 # Load environment variables from a .env file if it exists
 load_dotenv()
@@ -31,4 +33,27 @@ if not GOOGLE_API_KEY:
 
 print("Configuration loaded.")
 print(f"Using LLM Provider: {LLM_PROVIDER}")
-print(f"Jenkins API URL: {JENKINS_API_BASE_URL}") 
+print(f"Jenkins API URL: {JENKINS_API_BASE_URL}")
+
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "aiagentdb")
+DB_USER = os.getenv("DB_USER", "aiagentuser")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "supersecretpassword")
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL_SYNC = os.getenv("DATABASE_URL_SYNC")
+
+# Alembic ve sync işlemler için kullanılacak bağlantı adresi
+SQLALCHEMY_DATABASE_URL = DATABASE_URL_SYNC or f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close() 

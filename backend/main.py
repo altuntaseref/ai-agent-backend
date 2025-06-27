@@ -7,11 +7,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 import uvicorn
 from typing import Optional, Dict, Any
+from models import User, ChatHistory, ChatSession
+from passlib.context import CryptContext
+from jose import jwt, JWTError
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from datetime import datetime, timedelta
+from config import get_db
 
 from agent import SoftwareDevAgent
 from tools.project_generator import ProjectGeneratorTool
 from tools.jenkins.jenkins_tools import CreatePipelineTool, TriggerPipelineTool, PipelineStatusTool, AppHealthCheckTool
-from schemas import ChatResponse
+from schemas import ChatResponse, UserResponse, UserCreate, ChatHistoryListResponse, ChatHistoryResponse, ChatSessionCreate, ChatSessionResponse, ChatSessionListResponse
 import config
 import prompts
 
@@ -54,7 +60,14 @@ def startup_event():
     except Exception as e:
         print(f"CRITICAL: Agent initialization failed: {e}")
         agent_instance = None
-
+# JWT ayarları
+def get_jwt_settings():
+    secret = os.getenv("JWT_SECRET", "supersecretjwtkey")
+    print("JWT_SECRET:", secret)
+    algo = os.getenv("JWT_ALGORITHM", "HS256")
+    print("JWT_ALGORITHM:", algo)
+    expire = int(os.getenv("JWT_EXPIRE_MINUTES", 60))
+    return secret, algo, expire
 # --- Bağımlılık (Dependency) --- 
 def get_agent():
     if agent_instance is None:
@@ -89,26 +102,44 @@ def is_valid_postman_collection(file_content: bytes) -> bool:
         return False
     except (json.JSONDecodeError, TypeError, KeyError):
         return False
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
+# Kullanıcıyı token'dan bulma
+def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_db)):
+    secret, algo, _ = get_jwt_settings()
+    try:
+        print("Token:", token)
+        payload = jwt.decode(token, secret, algorithms=[algo])
+        
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Geçersiz kimlik doğrulama. User Id yok")
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if user is None:
+            raise HTTPException(status_code=401, detail="Geçersiz kimlik doğrulama. User yok")
+        return user
+    except JWTError as e:
+        print("JWTError:", str(e))
+        raise HTTPException(status_code=401, detail="Geçersiz kimlik doğrulama. Exception")
 
 # --- Ana Chat Endpoint'i --- 
 @app.post("/chat", response_model=ChatResponse)
 async def handle_chat_with_file(
     agent: SoftwareDevAgent = Depends(get_agent),
-    message: str = Form(...), # Kullanıcı mesajı form alanı olarak
-    postman_collection: Optional[UploadFile] = File(None), # Postman koleksiyonu için özel alan
-    project_details: Optional[Dict[str, Any]] = Body(None) # Proje detayları (opsiyonel, JSON body)
+    message: str = Form(...),
+    session_id: int = Form(...),
+    postman_collection: Optional[UploadFile] = File(None),
+    project_details: Optional[Dict[str, Any]] = Body(None),
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db)
 ):
-    """
-    Kullanıcıdan gelen mesajı, Postman koleksiyonunu ve proje detaylarını işler.
-    
-    - message: Kullanıcı mesajı (zorunlu)
-    - postman_collection: Yüklenen Postman koleksiyonu dosyası (opsiyonel)
-    - project_details: Proje detayları (opsiyonel, JSON gövdesi)
-    """
-    
+    # Session kontrolü
+    session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
     input_for_agent = message
     temp_file_path = None # Geçici dosya yolu
-    
+
     # 1. Postman koleksiyonunu işle
     if postman_collection:
         try:
@@ -150,6 +181,16 @@ async def handle_chat_with_file(
         # Agent'a mesajı ve gerekli bilgileri ilet
         agent_response = agent.run(input_for_agent)
         
+        # Chat geçmişine kaydet
+        chat_entry = ChatHistory(
+            user_id=current_user.id,
+            session_id=session_id,
+            message=message,
+            response=agent_response
+        )
+        db.add(chat_entry)
+        db.commit()
+        
         # Başarılı işlem sonrası geçici dosyayı temizle
         if temp_file_path and os.path.exists(temp_file_path):
             try:
@@ -171,7 +212,112 @@ async def handle_chat_with_file(
                 pass
         raise HTTPException(status_code=500, detail=f"Bir iç hata oluştu: {e}")
 
+# Şifre hashleme için context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+
+
+# Şifre hashleme ve doğrulama
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
+
+# JWT token oluşturma
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    secret, algo, expire_minutes = get_jwt_settings()
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=expire_minutes))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, secret, algorithm=algo)
+
+def create_refresh_token(data: dict, expires_delta: timedelta = None):
+    secret, algo, _ = get_jwt_settings()
+    expire = datetime.utcnow() + (expires_delta or timedelta(days=7))
+    to_encode = data.copy()
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, secret, algorithm=algo)
+
+# Admin mi kontrolü
+def get_current_admin(current_user: User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Sadece admin erişebilir.")
+    return current_user
+
+# Register endpointi (sadece admin)
+@app.post("/register", response_model=UserResponse)
+def register(user: UserCreate, db=Depends(get_db), admin: User = Depends(get_current_admin)):
+    if db.query(User).filter(User.email == user.email).first():
+        raise HTTPException(status_code=400, detail="Bu email zaten kayıtlı.")
+    hashed = hash_password(user.password)
+    db_user = User(email=user.email, password_hash=hashed, is_admin=user.is_admin or False)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+# Login endpointi
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
+    user = db.query(User).filter(User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Geçersiz email veya şifre.")
+    access_token = create_access_token(data={"sub": str(user.id)})
+    refresh_token = create_refresh_token(data={"sub": str(user.id)})
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+
+@app.post("/chat/session", response_model=ChatSessionResponse)
+def create_chat_session(session: ChatSessionCreate, current_user: User = Depends(get_current_user), db=Depends(get_db)):
+    new_session = ChatSession(user_id=current_user.id, title=session.title)
+    db.add(new_session)
+    db.commit()
+    db.refresh(new_session)
+    return new_session
+
+@app.get("/chat/sessions", response_model=ChatSessionListResponse)
+def list_chat_sessions(current_user: User = Depends(get_current_user), db=Depends(get_db)):
+    sessions = db.query(ChatSession).filter(ChatSession.user_id == current_user.id).order_by(ChatSession.created_at.desc()).all()
+    session_list = [ChatSessionResponse.from_orm(s) for s in sessions]
+    return ChatSessionListResponse(sessions=session_list)
+
+@app.get("/chat/history", response_model=ChatHistoryListResponse)
+def get_chat_history(session_id: int, current_user: User = Depends(get_current_user), db=Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
+    history = db.query(ChatHistory).filter(ChatHistory.session_id == session_id).order_by(ChatHistory.timestamp.asc()).all()
+    return ChatHistoryListResponse(history=history)
+
+# Basit bir refresh token blacklist (bellekte, örnek amaçlı)
+refresh_token_blacklist = set()
+
+@app.post("/logout")
+def logout(refresh_token: str = Body(...)):
+    refresh_token_blacklist.add(refresh_token)
+    return {"message": "Başarıyla çıkış yapıldı."}
+
+# /refresh endpointini güncelle: Blacklist kontrolü ekle
+@app.post("/refresh")
+def refresh_token(refresh_token: str = Body(...), db=Depends(get_db)):
+    if refresh_token in refresh_token_blacklist:
+        raise HTTPException(status_code=401, detail="Bu refresh token ile tekrar giriş yapılamaz.")
+    secret, algo, _ = get_jwt_settings()
+    try:
+        payload = jwt.decode(refresh_token, secret, algorithms=[algo])
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Geçersiz refresh token.")
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if user is None:
+            raise HTTPException(status_code=401, detail="Kullanıcı bulunamadı.")
+        new_access_token = create_access_token(data={"sub": str(user.id)})
+        return {"access_token": new_access_token, "token_type": "bearer"}
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Geçersiz refresh token.")
+
 # --- Uygulamayı Çalıştırma --- 
 if __name__ == "__main__":
     print("Starting API server (single endpoint mode)...")
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8080, reload=True)
