@@ -1,0 +1,77 @@
+{
+  "info": {
+    "name": "AI Agent Backend API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Chat (Ana Endpoint)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "message",
+              "value": "Merhaba, bir proje oluşturmak istiyorum.",
+              "type": "text"
+            },
+            {
+              "key": "postman_collection",
+              "type": "file",
+              "src": ""
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:8000/chat",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "chat"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Chat (Proje Detayları ile)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "message",
+              "value": "Bir proje oluşturmak istiyorum.",
+              "type": "text"
+            },
+            {
+              "key": "project_details",
+              "value": "{\n  \"projectName\": \"test-service\",\n  \"packageName\": \"com.example.test\",\n  \"baseUrl\": \"https://test.com\",\n  \"username\": \"kullanici\",\n  \"password\": \"sifre\",\n  \"apiKey\": \"apikey\",\n  \"systemName\": \"test\",\n  \"sslCerIsRequired\": true,\n  \"gitlabRepoUrl\": \"https://gitlab.com/test/test-service.git\"\n}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:8000/chat",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "chat"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+} 
