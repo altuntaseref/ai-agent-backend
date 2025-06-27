@@ -317,6 +317,33 @@ def refresh_token(refresh_token: str = Body(...), db=Depends(get_db)):
     except JWTError:
         raise HTTPException(status_code=401, detail="Geçersiz refresh token.")
 
+@app.delete("/chat/session/{session_id}")
+def delete_chat_session(session_id: int, current_user: User = Depends(get_current_user), db=Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
+    # Önce ilgili tüm mesajları sil
+    db.query(ChatHistory).filter(ChatHistory.session_id == session_id).delete()
+    db.delete(session)
+    db.commit()
+    return {"message": "Chat oturumu ve mesajları silindi."}
+
+@app.put("/chat/session/{session_id}", response_model=ChatSessionResponse)
+def update_chat_session(session_id: int, session_update: ChatSessionCreate, current_user: User = Depends(get_current_user), db=Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
+    session.title = session_update.title
+    db.commit()
+    db.refresh(session)
+    return ChatSessionResponse.from_orm(session)
+
+@app.get("/chat/sessions/search", response_model=ChatSessionListResponse)
+def search_chat_sessions(query: str, current_user: User = Depends(get_current_user), db=Depends(get_db)):
+    sessions = db.query(ChatSession).filter(ChatSession.user_id == current_user.id, ChatSession.title.ilike(f"%{query}%")).order_by(ChatSession.created_at.desc()).all()
+    session_list = [ChatSessionResponse.from_orm(s) for s in sessions]
+    return ChatSessionListResponse(sessions=session_list)
+
 # --- Uygulamayı Çalıştırma --- 
 if __name__ == "__main__":
     print("Starting API server (single endpoint mode)...")
